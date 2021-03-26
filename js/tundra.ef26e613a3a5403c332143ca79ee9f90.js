@@ -329,12 +329,14 @@ const tundraContract_deposit = async function (chefAbi, chefAddress, token1, tok
   const total = Number(s1_input) + Number(s2_input) + Number(s3_input);
 
   const slippage = getSlippage();
-  const slippageMultiplier = 1 - (slippage / 100);
+  const slippageMultiplier = 100 - slippage;
 
-  const minToMint = await CHEF_CONTRACT.calculateTokenAmount(App.YOUR_ADDRESS, [s1_amount, s2_amount, s3_amount], true)
-  const minToMintAmount = ethers.BigNumber.from(String(Math.round(minToMint / 1e18 * slippageMultiplier) + "0".repeat(18)));
+  const minToMint = await CHEF_CONTRACT.calculateTokenAmount(App.YOUR_ADDRESS, [s1_amount, s2_amount, s3_amount], true);
+  const minToMintAmount = minToMint.mul(slippageMultiplier).div(100);
   const deadline = Date.now() + 180; //3 minutes
 
+  console.log("minToMint: ", minToMint / 1e18);
+  console.log("minToMintAmount: ", minToMintAmount / 1e18);
   let allow = Promise.resolve()
 
   showLoading()
@@ -353,12 +355,12 @@ const tundraContract_deposit = async function (chefAbi, chefAddress, token1, tok
           })
           .catch(function () {
             hideLoading()
-            alert('Something went wrong.')
+            alert('Could not deposit. Check token amounts and slippage %.')
           })
       })
       .catch(function () {
         hideLoading()
-        alert('Something went wrong.')
+        alert('Could not deposit. Check token amounts and slippage %.')
       })
   }
 }
