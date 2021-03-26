@@ -69,11 +69,15 @@ async function main() {
   const withdrawLP = async function () {
     return tundraContract_withdraw(TUNDRA_ABI, TUNDRA_ADDRESS, S3D_ADDRESS, TUNDRA_ADDRESS, App)
   }
+  const updateDepositModal = async function () {
+    return updateDepositModal(TUNDRA_ABI, TUNDRA_ADDRESS, STABLE_1_ADDRESS, STABLE_2_ADDRESS, STABLE_3_ADDRESS, S3D_ADDRESS, TUNDRA_ADDRESS, App)
+  }
   // Tokens & contracts
   const STABLE_1_TOKEN = new ethers.Contract(STABLE_1_ADDRESS, ERC20_ABI, signer);
   const STABLE_2_TOKEN = new ethers.Contract(STABLE_2_ADDRESS, ERC20_ABI, signer);
   const STABLE_3_TOKEN = new ethers.Contract(STABLE_3_ADDRESS, ERC20_ABI, signer);
   const S3D_TOKEN = new ethers.Contract(S3D_ADDRESS, ERC20_ABI, signer);
+  const TUNDRA_CONTRACT = new ethers.Contract(TUNDRA_ADDRESS, TUNDRA_ABI, signer);
 
   // User Balances
   const s1_balance = await STABLE_1_TOKEN.balanceOf(App.YOUR_ADDRESS);
@@ -158,6 +162,9 @@ async function main() {
 
   if ((s1_balance + s2_balance + s3_balance) > 0){
     $("#deposit_btn").click(function(){
+      loadDepositModal(TUNDRA_CONTRACT, App);
+    });
+    $("#deposit_confirm_btn").click(function(){
       depositStables();
     });
   } else {
@@ -184,6 +191,44 @@ async function main() {
   }
 
   hideLoading();
+}
+
+const loadDepositModal = async function(TUNDRA_CONTRACT, App){
+  // inputs
+  const s1_input = $("#token_1_input").val();
+  const s2_input = $("#token_2_input").val();
+  const s3_input = $("#token_3_input").val();
+  $("#token_1_deposit_amt").html(s1_input || 0);
+  $("#token_2_deposit_amt").html(s2_input || 0);
+  $("#token_3_deposit_amt").html(s3_input || 0);
+  $("#total_deposit_amt").html(Number(s1_input) + Number(s2_input) + Number(s3_input));
+  const s1_amount = ethers.BigNumber.from(String(Math.round(s1_input)) + "0".repeat(6));
+  const s2_amount = ethers.BigNumber.from(String(Math.round(s2_input)) + "0".repeat(18));
+  const s3_amount = ethers.BigNumber.from(String(Math.round(s3_input)) + "0".repeat(18));
+
+  // recieving
+  const minToMint = await TUNDRA_CONTRACT.calculateTokenAmount(App.YOUR_ADDRESS, [s1_amount, s2_amount, s3_amount], true)
+  $("#receiving_amt").html((minToMint / 1e18).toFixed(6));
+
+  const slippage = getSlippage();
+  $("#max_slippage").html(slippage);
+}
+
+function getSlippage() {
+  // slippage
+  const radio1checked = $("#radio-1").is(':checked');
+  const radio2checked = $("#radio-2").is(':checked');
+  const radio3checked = $("#radio-3").is(':checked');
+  const customSlippage = $("#custom_slippage").val();
+  let slippage = 1;
+  if (radio1checked) {
+    slippage = 0.1;
+  } else if (radio2checked) {
+    slippage = 1;
+  } else if (radio3checked) {
+    slippage = Number(customSlippage);
+  }
+  return slippage;
 }
 
 const tundraContract_revoke = async function (chefAbi, chefAddress, stakeTokenAddr, App) {
@@ -281,10 +326,13 @@ const tundraContract_deposit = async function (chefAbi, chefAddress, token1, tok
   const s1_valid = s1_input > 0 ? (s1_allowance > 0 && s1_balance / 1e6 >= s1_input): true;
   const s2_valid = s2_input > 0 ? (s2_allowance > 0 && s2_balance / 1e18 >= s2_input) : true;
   const s3_valid = s3_input > 0 ? (s3_allowance > 0 && s3_balance / 1e18 >= s3_input) : true;
-  const total = s1_input + s2_input + s3_input;
+  const total = Number(s1_input) + Number(s2_input) + Number(s3_input);
+
+  const slippage = getSlippage();
+  const slippageMultiplier = 1 - (slippage / 100);
 
   const minToMint = await CHEF_CONTRACT.calculateTokenAmount(App.YOUR_ADDRESS, [s1_amount, s2_amount, s3_amount], true)
-  const minToMintAmount = ethers.BigNumber.from(String(Math.round(minToMint / 1e18 * 0.9)) + "0".repeat(18))
+  const minToMintAmount = ethers.BigNumber.from(String(Math.round(minToMint / 1e18 * slippageMultiplier) + "0".repeat(18)));
   const deadline = Date.now() + 180; //3 minutes
 
   let allow = Promise.resolve()
@@ -356,5 +404,70 @@ const tundraContract_withdraw = async function (chefAbi, chefAddress, S3D_token,
         alert('Something went wrong.')
       })
   }
+  const updateDepositModal = async function (chefAbi, chefAddress, token1, token2, token3, tundraToken, App) {
+    const signer = App.provider.getSigner()
+    console.log(signer)
 
+    //Tokens
+    const STABLE_1_TOKEN = new ethers.Contract(token1, ERC20_ABI, signer)
+    const STABLE_2_TOKEN = new ethers.Contract(token2, ERC20_ABI, signer)
+    const STABLE_3_TOKEN = new ethers.Contract(token3, ERC20_ABI, signer)
+
+    // Balances
+    const s1_balance = await STABLE_1_TOKEN.balanceOf(App.YOUR_ADDRESS)
+    const s2_balance = await STABLE_2_TOKEN.balanceOf(App.YOUR_ADDRESS)
+    const s3_balance = await STABLE_3_TOKEN.balanceOf(App.YOUR_ADDRESS)
+
+    // Approvals
+    const s1_allowance = await STABLE_1_TOKEN.allowance(App.YOUR_ADDRESS, chefAddress)
+    const s2_allowance = await STABLE_2_TOKEN.allowance(App.YOUR_ADDRESS, chefAddress)
+    const s3_allowance = await STABLE_3_TOKEN.allowance(App.YOUR_ADDRESS, chefAddress)
+    const CHEF_CONTRACT = new ethers.Contract(chefAddress, chefAbi, signer)
+
+    // inputs
+    const s1_input = $("#token_1_input").val();
+    const s2_input = $("#token_2_input").val();
+    const s3_input = $("#token_3_input").val();
+    //web3.utils.toBN(String(totalSupply) + "0".repeat(decimalPrecision)
+    const s1_amount = ethers.BigNumber.from(String(Math.round(s1_input)) + "0".repeat(6));
+    const s2_amount = ethers.BigNumber.from(String(Math.round(s2_input)) + "0".repeat(18));
+    const s3_amount = ethers.BigNumber.from(String(Math.round(s3_input)) + "0".repeat(18));
+
+    // validation
+    const s1_valid = s1_input > 0 ? (s1_allowance > 0 && s1_balance / 1e6 >= s1_input): true;
+    const s2_valid = s2_input > 0 ? (s2_allowance > 0 && s2_balance / 1e18 >= s2_input) : true;
+    const s3_valid = s3_input > 0 ? (s3_allowance > 0 && s3_balance / 1e18 >= s3_input) : true;
+    const total = s1_input + s2_input + s3_input;
+
+    const minToMint = await CHEF_CONTRACT.calculateTokenAmount(App.YOUR_ADDRESS, [s1_amount, s2_amount, s3_amount], true)
+    const minToMintAmount = ethers.BigNumber.from(String(Math.round(minToMint / 1e18 * 0.9)) + "0".repeat(18))
+    const deadline = Date.now() + 180; //3 minutes
+
+    let allow = Promise.resolve()
+
+    showLoading()
+    if (!s1_valid || !s2_valid|| !s3_valid || total == 0) {
+      alert('Please approve spending first or check your input amounts')
+      hideLoading();
+    } else {
+      allow
+        .then(async function () {
+          CHEF_CONTRACT.addLiquidity([s1_amount, s2_amount, s3_amount], minToMintAmount, deadline)
+            .then(function (t) {
+              App.provider.waitForTransaction(t.hash).then(function () {
+                hideLoading()
+                alert('Tokens deposited. Refresh page to see balance.')
+              })
+            })
+            .catch(function () {
+              hideLoading()
+              alert('Something went wrong.')
+            })
+        })
+        .catch(function () {
+          hideLoading()
+          alert('Something went wrong.')
+        })
+    }
+  }
 }
