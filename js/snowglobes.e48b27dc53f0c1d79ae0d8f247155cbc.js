@@ -154,12 +154,20 @@ async function main() {
   const pendingSNOBTokensPool2 = await ICEQUEEN_CONTRACT.pendingSnowball(2, App.YOUR_ADDRESS)
   const pendingSNOBTokensPool3 = await ICEQUEEN_CONTRACT.pendingSnowball(3, App.YOUR_ADDRESS)
   const pendingSNOBTokensPool4 = await ICEQUEEN_CONTRACT.pendingSnowball(4, App.YOUR_ADDRESS)
-  const claimableSnowballs = pendingSNOBTokensPool1 / 1e18 + pendingSNOBTokensPool2 / 1e18 + pendingSNOBTokensPool3 / 1e18 + pendingSNOBTokensPool4 / 1e18
+  const pendingSNOBTokensPool5 = await ICEQUEEN_CONTRACT.pendingSnowball(5, App.YOUR_ADDRESS)
+  const pendingSNOBTokensPool6 = await ICEQUEEN_CONTRACT.pendingSnowball(6, App.YOUR_ADDRESS)
+  const pendingSNOBTokensPool7 = await ICEQUEEN_CONTRACT.pendingSnowball(7, App.YOUR_ADDRESS)
+  const claimableSnowballs = pendingSNOBTokensPool1 / 1e18 + pendingSNOBTokensPool2 / 1e18 + pendingSNOBTokensPool3 / 1e18 + pendingSNOBTokensPool4 / 1e18 + pendingSNOBTokensPool5 / 1e18 + pendingSNOBTokensPool6 / 1e18 + pendingSNOBTokensPool7 / 1e18;
   const currentSNOBTokens = await SNOB_TOKEN.balanceOf(App.YOUR_ADDRESS)
   const snowballMultiplier = await ICEQUEEN_CONTRACT.BONUS_MULTIPLIER()
   const blockRate = await ICEQUEEN_CONTRACT.snowballPerBlock()
   const snowballsPerBlock = snowballMultiplier * blockRate
-  const blockNumber = await App.provider.getBlockNumber()
+  const blockNumber = await App.provider.getBlockNumber();
+  const currentBlock = await App.provider.getBlock(blockNumber);
+  const yesterdayBlock = await App.provider.getBlock(blockNumber - 15000);
+  const secondsInDay = 86400;
+  const blocks24hrs = (secondsInDay / (currentBlock.timestamp - yesterdayBlock.timestamp)) * 15000;
+
   const prices = await getAvaxPrices();
   const snobPrice = prices['0xC38f41A296A4493Ff429F1238e030924A1542e50'] ? prices['0xC38f41A296A4493Ff429F1238e030924A1542e50'].usd : 0;
   const marketCapDisplay = `$${new Intl.NumberFormat('en-US').format(snobTotalSupply / 1e18 * snobPrice)}`
@@ -169,6 +177,7 @@ async function main() {
   $('#snob-supply-max').append(`18,000,000`)
   $('#snob-per-block').append(`${snowballsPerBlock / 1e18}`)
   $('#snob-block-pday').append(`${(snowballsPerBlock / 1e18 * 15000).toLocaleString()}`)
+  $('#blocks-24-hrs').append(`~${Math.round(blocks24hrs).toLocaleString()}`)
 
   document.getElementById('wallet-copy').addEventListener('click', ()=>{
   navigator.clipboard.writeText(`${App.YOUR_ADDRESS}`).then(function() {
@@ -236,12 +245,12 @@ async function main() {
 	    })
     	if (res && res.pairs) {
     		res.pairs.forEach( p => {
-    			if (p.token1.symbol == 'usdt') {
-    				usdt_tvl = p.locked_value;
-    				usdt_tvl_display = `$${new Intl.NumberFormat('en-US').format(p.locked_value)}`
-    			} else if (p.token1.symbol == 'link') {
-    				link_tvl = p.locked_value;
-    				link_tvl_display = `$${new Intl.NumberFormat('en-US').format(p.locked_value)}`
+    			if (p.token1.token.toLowerCase() == 'usdt') {
+    				usdt_tvl = p.locked;
+    				usdt_tvl_display = `$${new Intl.NumberFormat('en-US').format(p.locked)}`
+    			} else if (p.token1.token.toLowerCase() == 'link') {
+    				link_tvl = p.locked;
+    				link_tvl_display = `$${new Intl.NumberFormat('en-US').format(p.locked)}`
     			}
     		});
 		}
